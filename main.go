@@ -11,7 +11,8 @@ import (
 
 func Ck(err error) {
 	if err != nil {
-		panic(err)
+		_, file, line, _ := runtime.Caller(1)
+		log.Panicf("%s %d: %v", file, line, err)
 	}
 }
 
