@@ -9,5 +9,5 @@ test:
 	go tool cover -html=$(cov).out -o $(cov).html
 
 testloop:
-	while true; do inotifywait *; sleep 1; make test; done
+	while true; do inotifywait -e MOVE *; sleep 1; make test; done
 
