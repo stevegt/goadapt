@@ -15,17 +15,17 @@ type AdaptErr struct {
 }
 
 func (e AdaptErr) Error() string {
-	var s string
+	var s []string
 	if len(e.File) > 0 {
-		s = fmt.Sprintf("%s:%d: ", e.File, e.Line)
+		s = append(s, fmt.Sprintf("%s:%d", e.File, e.Line))
 	}
 	if len(e.Msg) > 0 {
-		s += fmt.Sprintf("%s", e.Msg)
+		s = append(s, e.Msg)
 	}
 	if e.Err != nil {
-		s += fmt.Sprintf(": %v", e.Err)
+		s = append(s, fmt.Sprintf("%v", e.Err))
 	}
-	return s
+	return strings.Join(s, ": ")
 }
 
 func (e AdaptErr) Unwrap() error {
