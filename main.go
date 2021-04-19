@@ -1,10 +1,13 @@
 package adapt
 
 import (
+	"errors"
 	"fmt"
 	"log"
+	"os"
 	"runtime"
 	"strings"
+	"syscall"
 )
 
 type AdaptErr struct {
@@ -35,16 +38,20 @@ func (e AdaptErr) Unwrap() error {
 func Ck(err error, args ...interface{}) {
 	if err != nil {
 		_, file, line, _ := runtime.Caller(1)
-		var msg string
-		if len(args) == 1 {
-			msg = fmt.Sprintf("%v", args[0])
-		}
-		if len(args) > 1 {
-			msg = fmt.Sprintf(args[0].(string), args[1:]...)
-		}
+		msg := formatArgs(args...)
 		e := AdaptErr{file, line, msg, err}
 		panic(&e)
 	}
+}
+
+func formatArgs(args ...interface{}) (msg string) {
+	if len(args) == 1 {
+		msg = fmt.Sprintf("%v", args[0])
+	}
+	if len(args) > 1 {
+		msg = fmt.Sprintf(args[0].(string), args[1:]...)
+	}
+	return
 }
 
 func Assert(cond bool, args ...interface{}) {
@@ -80,15 +87,42 @@ func Return(err *error, args ...interface{}) {
 	// e is *AdaptErr
 	// e.Err is the original error thrown by lower call
 
-	var msg string
-	if len(args) == 1 {
-		msg = fmt.Sprintf("%v", args[0])
-	}
-	if len(args) > 1 {
-		msg = fmt.Sprintf(args[0].(string), args[1:]...)
-	}
+	msg := formatArgs(args...)
 
 	*err = &AdaptErr{Msg: msg, Err: e}
+}
+
+func ExitIf(err, target error, args ...interface{}) {
+	// fmt.Printf("%T %T\n", err, target)
+	if errors.Is(err, target) {
+		rc := int(syscall.EPERM)
+		stack := ErrStack(err)
+		// fmt.Printf("%#v\n", stack)
+		root := stack[0]
+		parent := err
+		if len(stack) > 1 {
+			parent = stack[1]
+		}
+		errno, ok := root.(syscall.Errno)
+		if ok {
+			rc = int(errno)
+		}
+		msg := formatArgs(args...)
+		if len(msg) > 0 {
+			fmt.Printf("%s: ", msg)
+		}
+		fmt.Printf("%v\n", parent)
+		os.Exit(rc)
+	}
+}
+
+func ErrStack(e error) (stack []error) {
+	stack = append(stack, e)
+	child := errors.Unwrap(e)
+	if child != nil {
+		stack = append(ErrStack(child), stack...)
+	}
+	return
 }
 
 func Info(msg interface{}, args ...interface{}) {
