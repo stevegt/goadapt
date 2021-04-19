@@ -1,23 +1,23 @@
-package adapt
+package goadapt
 
 import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
 	"runtime"
 	"strings"
 	"syscall"
 )
 
-type AdaptErr struct {
+type adaptErr struct {
 	File string
 	Line int
 	Msg  string
 	Err  error
+	Rc   int
 }
 
-func (e AdaptErr) Error() string {
+func (e adaptErr) Error() string {
 	var s []string
 	if len(e.File) > 0 {
 		s = append(s, fmt.Sprintf("%s:%d", e.File, e.Line))
@@ -31,7 +31,7 @@ func (e AdaptErr) Error() string {
 	return strings.Join(s, ": ")
 }
 
-func (e AdaptErr) Unwrap() error {
+func (e adaptErr) Unwrap() error {
 	return e.Err
 }
 
@@ -39,7 +39,7 @@ func Ck(err error, args ...interface{}) {
 	if err != nil {
 		_, file, line, _ := runtime.Caller(1)
 		msg := formatArgs(args...)
-		e := AdaptErr{file, line, msg, err}
+		e := adaptErr{file, line, msg, err, 0}
 		panic(&e)
 	}
 }
@@ -65,38 +65,50 @@ func Assert(cond bool, args ...interface{}) {
 		if len(args) > 1 {
 			msg += ": " + fmt.Sprintf(args[0].(string), args[1:]...)
 		}
-		e := AdaptErr{file, line, msg, nil}
+		e := adaptErr{file, line, msg, nil, 0}
 		panic(&e)
 	}
 }
 
 // convert panic into returned err
 // see https://github.com/lainio/err2 and https://blog.golang.org/go1.13-errors
-func Return(err *error, args ...interface{}) {
+func Return(out interface{}, args ...interface{}) {
 	r := recover()
 	if r == nil {
 		return
 	}
-	// r is interface{}
+	// r is an interface{}
 
-	e, ok := r.(*AdaptErr)
+	e, ok := r.(*adaptErr)
 	if !ok {
 		// wasn't us -- let the panic continue
 		panic(r)
 	}
-	// e is *AdaptErr
-	// e.Err is the original error thrown by lower call
+	// e is an *adaptErr
+	// e.Err is the error thrown by lower call
 
 	msg := formatArgs(args...)
 
-	*err = &AdaptErr{Msg: msg, Err: e}
+	switch res := out.(type) {
+	case *error:
+		// return a wrapper err
+		*res = &adaptErr{Msg: msg, Err: e}
+	case *int:
+		if e.Rc == 0 {
+			// we had an adaptErr panic but no Rc
+			log.Println(e)
+			*res = 1
+		}
+		log.Println(e.Msg)
+		*res = e.Rc
+	}
 }
 
 func ExitIf(err, target error, args ...interface{}) {
 	// fmt.Printf("%T %T\n", err, target)
 	if errors.Is(err, target) {
 		rc := int(syscall.EPERM)
-		stack := ErrStack(err)
+		stack := errStack(err)
 		// fmt.Printf("%#v\n", stack)
 		root := stack[0]
 		parent := err
@@ -107,20 +119,24 @@ func ExitIf(err, target error, args ...interface{}) {
 		if ok {
 			rc = int(errno)
 		}
+
 		msg := formatArgs(args...)
 		if len(msg) > 0 {
-			fmt.Printf("%s: ", msg)
+			msg = fmt.Sprintf("%s: ", msg)
 		}
-		fmt.Printf("%v\n", parent)
-		os.Exit(rc)
+		msg = fmt.Sprintf("%v", parent)
+
+		_, file, line, _ := runtime.Caller(1)
+		e := adaptErr{file, line, msg, parent, rc}
+		panic(&e)
 	}
 }
 
-func ErrStack(e error) (stack []error) {
+func errStack(e error) (stack []error) {
 	stack = append(stack, e)
 	child := errors.Unwrap(e)
 	if child != nil {
-		stack = append(ErrStack(child), stack...)
+		stack = append(errStack(child), stack...)
 	}
 	return
 }
