@@ -105,6 +105,20 @@ func errMsg(err error) (msg string) {
 	return
 }
 
+/*
+// this likely works; leaving this here in case we want it.  in the
+// meantime we can just use Ck()
+func Raise(i int, args ...interface{}) {
+	err := fmt.Errorf("%w: malformed path: %s", syscall.Errno(i), args...)
+	if err != nil {
+		_, file, line, _ := runtime.Caller(1)
+		msg := formatArgs(args...)
+		e := adaptErr{file, line, msg, err}
+		panic(&e)
+	}
+}
+*/
+
 func Ck(err error, args ...interface{}) {
 	if err != nil {
 		_, file, line, _ := runtime.Caller(1)

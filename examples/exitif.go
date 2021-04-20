@@ -52,7 +52,6 @@ func SomeFunc() (err error) {
 	// fmt.Println("r is", r)
 	switch r {
 	case 0:
-		// XXX not working
 		var e syscall.Errno
 		e = syscall.EPIPE
 		return e
