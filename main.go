@@ -9,7 +9,7 @@ import (
 	"syscall"
 )
 
-type adaptErr struct {
+type AdaptErr struct {
 	File string
 	Line int
 	Msg  string
@@ -17,7 +17,7 @@ type adaptErr struct {
 	Rc   int
 }
 
-func (e adaptErr) Error() string {
+func (e AdaptErr) Error() string {
 	var s []string
 	if len(e.File) > 0 {
 		s = append(s, fmt.Sprintf("%s:%d", e.File, e.Line))
@@ -31,7 +31,7 @@ func (e adaptErr) Error() string {
 	return strings.Join(s, ": ")
 }
 
-func (e adaptErr) Unwrap() error {
+func (e AdaptErr) Unwrap() error {
 	return e.Err
 }
 
@@ -39,7 +39,7 @@ func Ck(err error, args ...interface{}) {
 	if err != nil {
 		_, file, line, _ := runtime.Caller(1)
 		msg := formatArgs(args...)
-		e := adaptErr{file, line, msg, err, 0}
+		e := AdaptErr{file, line, msg, err, 0}
 		panic(&e)
 	}
 }
@@ -65,7 +65,7 @@ func Assert(cond bool, args ...interface{}) {
 		if len(args) > 1 {
 			msg += ": " + fmt.Sprintf(args[0].(string), args[1:]...)
 		}
-		e := adaptErr{file, line, msg, nil, 0}
+		e := AdaptErr{file, line, msg, nil, 0}
 		panic(&e)
 	}
 }
@@ -79,28 +79,34 @@ func Return(out interface{}, args ...interface{}) {
 	}
 	// r is an interface{}
 
-	e, ok := r.(*adaptErr)
+	e, ok := r.(*AdaptErr)
 	if !ok {
 		// wasn't us -- let the panic continue
 		panic(r)
 	}
-	// e is an *adaptErr
+	// e is an *AdaptErr
 	// e.Err is the error thrown by lower call
 
 	msg := formatArgs(args...)
 
 	switch res := out.(type) {
 	case *error:
-		// return a wrapper err
-		*res = &adaptErr{Msg: msg, Err: e}
+		if e.Rc == 0 {
+			// return a wrapper err
+			*res = &AdaptErr{Msg: msg, Err: e}
+		} else {
+			*res = e
+		}
 	case *int:
 		if e.Rc == 0 {
-			// we had an adaptErr panic but no Rc
+			// we had an AdaptErr panic but no Rc
 			log.Println(e)
 			*res = 1
 		}
 		log.Println(e.Msg)
 		*res = e.Rc
+	default:
+		panic("unsupported type")
 	}
 }
 
@@ -110,10 +116,10 @@ func ExitIf(err, target error, args ...interface{}) {
 		rc := int(syscall.EPERM)
 		stack := errStack(err)
 		// fmt.Printf("%#v\n", stack)
-		root := stack[0]
+		root := stack[0] // syscall.Errno
 		parent := err
 		if len(stack) > 1 {
-			parent = stack[1]
+			parent = stack[1] // e.g. os.PathError
 		}
 		errno, ok := root.(syscall.Errno)
 		if ok {
@@ -122,12 +128,13 @@ func ExitIf(err, target error, args ...interface{}) {
 
 		msg := formatArgs(args...)
 		if len(msg) > 0 {
-			msg = fmt.Sprintf("%s: ", msg)
+			msg = fmt.Sprintf("%s: %s", msg, parent)
+		} else {
+			// e.g. "no such file or directory"
+			msg = fmt.Sprintf("%s", parent)
 		}
-		msg = fmt.Sprintf("%v", parent)
 
-		_, file, line, _ := runtime.Caller(1)
-		e := adaptErr{file, line, msg, parent, rc}
+		e := AdaptErr{Msg: msg, Rc: rc}
 		panic(&e)
 	}
 }

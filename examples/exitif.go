@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"math/rand"
 	"os"
 	"syscall"
@@ -13,14 +14,18 @@ import (
 var FooError = errors.New("foo error")
 
 func main() {
-	rc := run()
+	rc, err := run()
+	if err != nil {
+		fmt.Fprint(os.Stderr, err.Error()+"\n")
+	}
 	os.Exit(rc)
 }
 
-func run() (rc int) {
+func run() (rc int, err error) {
 	defer Return(&rc)
+	defer Return(&err)
 	rand.Seed(time.Now().UnixNano())
-	err := mid()
+	err = mid()
 	ExitIf(err, FooError)
 	ExitIf(err, syscall.EPIPE, "pipeline %d error", 7)
 	ExitIf(err, syscall.ENOENT)
