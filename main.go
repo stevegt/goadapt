@@ -95,16 +95,17 @@ func Return(out interface{}, args ...interface{}) {
 			// return a wrapper err
 			*res = &AdaptErr{Msg: msg, Err: e}
 		} else {
-			*res = e
+			// if rc is set, then we want the child, native error, not
+			// wrapped in AdaptErr
+			*res = e.Err
 		}
 	case *int:
 		if e.Rc == 0 {
 			// we had an AdaptErr panic but no Rc
-			log.Println(e)
 			*res = 1
+		} else {
+			*res = e.Rc
 		}
-		log.Println(e.Msg)
-		*res = e.Rc
 	default:
 		panic("unsupported type")
 	}
@@ -129,13 +130,13 @@ func ExitIf(err, target error, args ...interface{}) {
 		msg := formatArgs(args...)
 		if len(msg) > 0 {
 			msg = fmt.Sprintf("%s: %s", msg, parent)
+			e := AdaptErr{Msg: msg, Rc: rc}
+			panic(&e)
 		} else {
 			// e.g. "no such file or directory"
-			msg = fmt.Sprintf("%s", parent)
+			e := AdaptErr{Err: parent, Rc: rc}
+			panic(&e)
 		}
-
-		e := AdaptErr{Msg: msg, Rc: rc}
-		panic(&e)
 	}
 }
 

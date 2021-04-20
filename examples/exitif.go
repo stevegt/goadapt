@@ -49,9 +49,14 @@ func mid() (err error) {
 
 func SomeFunc() (err error) {
 	defer Return(&err)
-	switch rand.Intn(4) {
+	r := rand.Intn(4)
+	fmt.Println("r is", r)
+	switch r {
 	case 0:
-		return syscall.EPIPE
+		// XXX not working
+		var e syscall.Errno
+		e = syscall.EPIPE
+		return e
 	case 1:
 		return FooError
 	case 2:
