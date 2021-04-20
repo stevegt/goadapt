@@ -154,22 +154,22 @@ func TestUnwrap(t *testing.T) {
 loop:
 	for i := 0; i < 10; i++ {
 		switch y := x.(type) {
-		case *AdaptErr:
-			// fmt.Printf("%d AdaptErr x %T y %T\n", i, x, y)
+		case *adaptErr:
+			// fmt.Printf("%d adaptErr x %T y %T\n", i, x, y)
 			x = y.Unwrap()
 		case *miderr:
 			// fmt.Printf("%d miderr x %T y %T\n", i, x, y)
 			x = y.Unwrap()
 		default:
 			// fmt.Printf("%d default  x %T y %T\n", i, x, y)
-			tassert(t, i == 3, "unwrap depth %d", i)
+			tassert(t, i == 3, "unwrap depth %d: %#v", i, y)
 			tassert(t, x.Error() == "bottom error", "failed bottom unwrap")
 			break loop
 		}
 	}
 
-	var e *AdaptErr
-	tassert(t, errors.As(err, &e), "err not unwrapping to AdaptErr")
+	var e *adaptErr
+	tassert(t, errors.As(err, &e), "err not unwrapping to adaptErr")
 
 	var l *miderr
 	tassert(t, errors.As(err, &l), "err %T not unwrapping to miderr: %v", err, err)

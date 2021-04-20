@@ -9,37 +9,107 @@ import (
 	"syscall"
 )
 
-type AdaptErr struct {
-	File string
-	Line int
-	Msg  string
-	Err  error
-	Rc   int
+type adaptErr struct {
+	file string
+	line int
+	msg  string
+	err  error
 }
 
-func (e AdaptErr) Error() string {
+func (e adaptErr) Error() string {
 	var s []string
-	if len(e.File) > 0 {
-		s = append(s, fmt.Sprintf("%s:%d", e.File, e.Line))
+	if len(e.file) > 0 {
+		s = append(s, fmt.Sprintf("%s:%d", e.file, e.line))
 	}
-	if len(e.Msg) > 0 {
-		s = append(s, e.Msg)
+	if len(e.msg) > 0 {
+		s = append(s, e.msg)
 	}
-	if e.Err != nil {
-		s = append(s, fmt.Sprintf("%v", e.Err))
+	if e.err != nil {
+		s = append(s, fmt.Sprintf("%v", e.err))
 	}
 	return strings.Join(s, ": ")
 }
 
-func (e AdaptErr) Unwrap() error {
-	return e.Err
+// Msg uses UnWrap() to recurse through the err stack, concatenating
+// all of the messages found in the stack and returning the result as
+// a string.  This function can be used instead of .Error() to get a
+// shorter, cleaner message string that doesn't include file and line
+// numbers.
+func (e adaptErr) Msg() string {
+	var parts []string
+	msg := e.msg
+	if len(msg) > 0 {
+		parts = append(parts, msg)
+	}
+	child := e.Unwrap()
+	if child != nil {
+		parts = append(parts, errMsg(child))
+	}
+	return strings.Join(parts, ": ")
+}
+
+func (e adaptErr) Unwrap() error {
+	return e.err
+}
+
+type exitErr struct {
+	msg string
+	err error
+}
+
+func (e exitErr) Error() string {
+	var parts []string
+	msg := e.msg
+	if len(msg) > 0 {
+		parts = append(parts, msg)
+	}
+	child := e.Unwrap()
+	if child != nil {
+		parts = append(parts, errMsg(child))
+	}
+	return strings.Join(parts, ": ")
+}
+
+func (e exitErr) Unwrap() error {
+	return e.err
+}
+
+// errRc uses UnWrap() to iterate through the err stack looking for a
+// syscall.Errno, and returns that as an int.  Returns 1 if there is
+// no syscall.Errno in the stack.
+func errRc(err error) (rc int) {
+	rc = 1
+	e := err
+	for {
+		e = errors.Unwrap(e)
+		if e == nil {
+			return
+		}
+		errno, ok := e.(syscall.Errno)
+		if ok {
+			rc = int(errno)
+			return
+		}
+	}
+}
+
+// errMsg returns a short message describing all errs in stack,
+// without filenames and line numbers if possible.
+func errMsg(err error) (msg string) {
+	switch concrete := err.(type) {
+	case *adaptErr:
+		msg = concrete.Msg()
+	default:
+		msg = concrete.Error()
+	}
+	return
 }
 
 func Ck(err error, args ...interface{}) {
 	if err != nil {
 		_, file, line, _ := runtime.Caller(1)
 		msg := formatArgs(args...)
-		e := AdaptErr{file, line, msg, err, 0}
+		e := adaptErr{file, line, msg, err}
 		panic(&e)
 	}
 }
@@ -65,86 +135,63 @@ func Assert(cond bool, args ...interface{}) {
 		if len(args) > 1 {
 			msg += ": " + fmt.Sprintf(args[0].(string), args[1:]...)
 		}
-		e := AdaptErr{file, line, msg, nil, 0}
+		e := adaptErr{file, line, msg, nil}
 		panic(&e)
 	}
 }
 
 // convert panic into returned err
 // see https://github.com/lainio/err2 and https://blog.golang.org/go1.13-errors
-func Return(out interface{}, args ...interface{}) {
+func Return(err *error, args ...interface{}) {
 	r := recover()
 	if r == nil {
 		return
 	}
-	// r is an interface{}
-
-	e, ok := r.(*AdaptErr)
-	if !ok {
-		// wasn't us -- let the panic continue
+	switch concrete := r.(type) {
+	case *adaptErr:
+		msg := formatArgs(args...)
+		*err = &adaptErr{msg: msg, err: concrete}
+	case *exitErr:
+		msg := formatArgs(args...)
+		e := &exitErr{msg: msg, err: concrete}
+		panic(e)
+	default:
+		// wasn't us -- re-raise
 		panic(r)
 	}
-	// e is an *AdaptErr
-	// e.Err is the error thrown by lower call
+}
 
-	msg := formatArgs(args...)
-
-	switch res := out.(type) {
-	case *error:
-		if e.Rc == 0 {
-			// return a wrapper err
-			*res = &AdaptErr{Msg: msg, Err: e}
-		} else {
-			// if rc is set, then we want the child, native error, not
-			// wrapped in AdaptErr
-			*res = e.Err
-		}
-	case *int:
-		if e.Rc == 0 {
-			// we had an AdaptErr panic but no Rc
-			*res = 1
-		} else {
-			*res = e.Rc
-		}
+// convert panic(exitErr) into returned rc and msg
+func Halt(rc *int, msg *string) {
+	r := recover()
+	if r == nil {
+		return
+	}
+	switch concrete := r.(type) {
+	case *adaptErr:
+		*rc = errRc(concrete)
+		*msg = concrete.Error()
+	case *exitErr:
+		*rc = errRc(concrete)
+		*msg = errMsg(concrete)
 	default:
-		panic("unsupported type")
+		panic(r)
 	}
 }
 
 func ExitIf(err, target error, args ...interface{}) {
-	// fmt.Printf("%T %T\n", err, target)
 	if errors.Is(err, target) {
-		rc := int(syscall.EPERM)
-		stack := errStack(err)
-		// fmt.Printf("%#v\n", stack)
-		root := stack[0] // syscall.Errno
-		parent := err
-		if len(stack) > 1 {
-			parent = stack[1] // e.g. os.PathError
-		}
-		errno, ok := root.(syscall.Errno)
-		if ok {
-			rc = int(errno)
-		}
-
 		msg := formatArgs(args...)
-		if len(msg) > 0 {
-			msg = fmt.Sprintf("%s: %s", msg, parent)
-			e := AdaptErr{Msg: msg, Rc: rc}
-			panic(&e)
-		} else {
-			// e.g. "no such file or directory"
-			e := AdaptErr{Err: parent, Rc: rc}
-			panic(&e)
-		}
+		e := &exitErr{msg: msg, err: err}
+		panic(e)
 	}
 }
 
 func errStack(e error) (stack []error) {
-	stack = append(stack, e)
+	stack = []error{e}
 	child := errors.Unwrap(e)
 	if child != nil {
-		stack = append(errStack(child), stack...)
+		stack = append(stack, errStack(child)...)
 	}
 	return
 }

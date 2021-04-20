@@ -14,18 +14,17 @@ import (
 var FooError = errors.New("foo error")
 
 func main() {
-	rc, err := run()
-	if err != nil {
-		fmt.Fprint(os.Stderr, err.Error()+"\n")
+	rc, msg := run()
+	if len(msg) > 0 {
+		fmt.Fprint(os.Stderr, msg+"\n")
 	}
 	os.Exit(rc)
 }
 
-func run() (rc int, err error) {
-	defer Return(&rc)
-	defer Return(&err)
+func run() (rc int, msg string) {
+	defer Halt(&rc, &msg)
 	rand.Seed(time.Now().UnixNano())
-	err = mid()
+	err := mid()
 	ExitIf(err, FooError)
 	ExitIf(err, syscall.EPIPE, "pipeline %d error", 7)
 	ExitIf(err, syscall.ENOENT)
@@ -50,7 +49,7 @@ func mid() (err error) {
 func SomeFunc() (err error) {
 	defer Return(&err)
 	r := rand.Intn(4)
-	fmt.Println("r is", r)
+	// fmt.Println("r is", r)
 	switch r {
 	case 0:
 		// XXX not working
