@@ -9,6 +9,7 @@ import (
 	"syscall"
 )
 
+// XXX deprecate adaptErr in favor of Wrap and stackTracer from https://pkg.go.dev/github.com/pkg/errors
 type adaptErr struct {
 	file string
 	line int
@@ -138,19 +139,73 @@ func formatArgs(args ...interface{}) (msg string) {
 	return
 }
 
+/*
+func errArgs(args ...interface{}) (err error) {
+	var stack []error
+	var format string
+	for i, arg := args {
+		e, ok := arg.(error)
+		if ok {
+			stack = append(stack, e)
+			continue
+		}
+		// first non-error arg is used as format string
+		if len(format) == 0 {
+			format = fmt.Sprintf("%v", arg)
+			continue
+		}
+		// remaining args are format values
+		e = fmt.Errorf(format, args[i:])
+		stack = append(stack, e)
+		break
+	}
+	// wrap in reverse order
+	for i := len(stack - 1); i >=0; i-- {
+		e = stack[i]
+		if err == nil {
+			err = e
+		} else {
+			err = fmt.Errorf("%w", err
+		}
+	}
+}
+*/
+
+// Assert takes a bool and zero or more arguments.  If the bool is
+// true, then Assert returns.  If the boolean is false, then Assert
+// panics.  The panic is of type adaptErr.  The adaptErr contains the
+// filename and line number of the caller.  The first argument is used
+// as a Sprintf() format string.  Any remaining arguments are provided
+// to the Sprintf() as values.  The Sprintf() result is stored as
+// adaptErr.msg, to be used later in the adaptErr.Error() string.
 func Assert(cond bool, args ...interface{}) {
-	var msg string
 	if !cond {
 		_, file, line, _ := runtime.Caller(1)
-		msg = "assertion failed"
-		if len(args) == 1 {
-			msg += fmt.Sprintf(": %v", args[0])
+		msg := "assertion failed"
+		m := formatArgs(args...)
+		if len(m) > 0 {
+			msg += ": " + m
 		}
-		if len(args) > 1 {
-			msg += ": " + fmt.Sprintf(args[0].(string), args[1:]...)
-		}
-		e := adaptErr{file, line, msg, nil}
-		panic(&e)
+		err := adaptErr{file, line, msg, nil}
+		panic(&err)
+	}
+}
+
+// ErrnoIf takes a bool and zero or more arguments.  If the bool is
+// false, then ErrnoIf returns.  If the boolean is true, then ErrnoIf
+// panics.  The panic is of type adaptErr.  The adaptErr contains the
+// filename and line number of the caller.  The first argument must be
+// of type syscall.Errno; the adaptErr wraps the errno.  The next
+// argument is used as a Sprintf() format string.  Any remaining
+// arguments are provided to the Sprintf() as values.  The Sprintf()
+// result is stored as adaptErr.msg, to be used later in the
+// adaptErr.Error() string.
+func ErrnoIf(cond bool, errno syscall.Errno, args ...interface{}) {
+	if cond {
+		_, file, line, _ := runtime.Caller(1)
+		msg := formatArgs(args...)
+		err := adaptErr{file, line, msg, errno}
+		panic(&err)
 	}
 }
 
@@ -175,7 +230,7 @@ func Return(err *error, args ...interface{}) {
 	}
 }
 
-// convert panic(exitErr) into returned rc and msg
+// convert panic into returned rc and msg
 func Halt(rc *int, msg *string) {
 	r := recover()
 	if r == nil {
