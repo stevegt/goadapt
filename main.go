@@ -230,6 +230,27 @@ func Return(err *error, args ...interface{}) {
 	}
 }
 
+// convert panic into returned err on channel
+func ReturnChan(errc chan error, args ...interface{}) {
+	r := recover()
+	if r == nil {
+		return
+	}
+	switch concrete := r.(type) {
+	case *adaptErr:
+		msg := formatArgs(args...)
+		err := adaptErr{msg: msg, err: concrete}
+		errc <- err
+	case *exitErr:
+		msg := formatArgs(args...)
+		e := &exitErr{msg: msg, err: concrete}
+		panic(e)
+	default:
+		// wasn't us -- re-raise
+		panic(r)
+	}
+}
+
 // convert panic into returned rc and msg
 func Halt(rc *int, msg *string) {
 	r := recover()
