@@ -94,6 +94,25 @@ func errRc(err error) (rc int) {
 	}
 }
 
+// errNo uses UnWrap() to iterate through the err stack looking for a
+// syscall.Errno, and returns that.  Returns syscall.EPERM if there is
+// no syscall.Errno in the stack.
+func errNo(err error) (errno syscall.Errno) {
+	e := err
+	for {
+		e = errors.Unwrap(e)
+		if e == nil {
+			return
+		}
+		errno, ok := e.(syscall.Errno)
+		if ok {
+			return errno
+		} else {
+			errno = syscall.EPERM
+		}
+	}
+}
+
 // errMsg returns a short message describing all errs in stack,
 // without filenames and line numbers if possible.
 func errMsg(err error) (msg string) {
@@ -267,6 +286,26 @@ func Halt(rc *int, msg *string) {
 	default:
 		panic(r)
 	}
+}
+
+// Unpanic converts a panic into a syscall.Errno and a message.
+func Unpanic(errno *syscall.Errno, logfunc func(msg string)) {
+	r := recover()
+	if r == nil {
+		return
+	}
+	var msg string
+	switch concrete := r.(type) {
+	case *syscall.Errno:
+		*errno = *concrete
+	case *adaptErr:
+		*errno = errNo(concrete)
+		msg = concrete.Error()
+	default:
+		*errno = syscall.EPERM
+		msg = fmt.Sprintf("%v", concrete)
+	}
+	logfunc(msg)
 }
 
 func ExitIf(err, target error, args ...interface{}) {
