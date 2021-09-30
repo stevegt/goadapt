@@ -9,6 +9,12 @@ import (
 	"syscall"
 )
 
+var (
+	Pl  = fmt.Println
+	Pf  = fmt.Printf
+	Spf = fmt.Sprintf
+)
+
 // XXX deprecate adaptErr in favor of Wrap and stackTracer from https://pkg.go.dev/github.com/pkg/errors
 type adaptErr struct {
 	file string
