@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"runtime"
 	"strings"
 	"syscall"
@@ -331,6 +332,14 @@ func errStack(e error) (stack []error) {
 	return
 }
 
+func Debug(msg interface{}, args ...interface{}) {
+	debug := os.Getenv("DEBUG")
+	if len(debug) == 0 {
+		return
+	}
+	_log(log.Printf, msg.(string), args...)
+}
+
 func Info(msg interface{}, args ...interface{}) {
 	_log(log.Printf, msg.(string), args...)
 }
@@ -353,3 +362,19 @@ func _log(method func(string, ...interface{}), msg string, args ...interface{}) 
 	}
 	method("%s %d: %v", file, line, msg)
 }
+
+/*
+func Debug(args ...interface{}) {
+	debug := os.Getenv("DEBUG")
+	if len(debug) == 0 {
+		return
+	}
+	_, file, line, _ := runtime.Caller(1)
+	msg := fmt.Sprintf("%s:%d", file, line)
+	m := formatArgs(args...)
+	if len(m) > 0 {
+		msg += ": " + m
+	}
+	fmt.Println(msg)
+}
+*/
