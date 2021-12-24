@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"testing"
 )
 
 var (
@@ -338,6 +339,13 @@ func Debug(msg interface{}, args ...interface{}) {
 		return
 	}
 	_log(log.Printf, msg.(string), args...)
+}
+
+func Tassert(t *testing.T, cond bool, txt string, args ...interface{}) {
+	t.Helper() // cause file:line info to show caller
+	if !cond {
+		t.Fatalf(txt, args...)
+	}
 }
 
 func Info(msg interface{}, args ...interface{}) {
