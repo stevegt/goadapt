@@ -1,6 +1,7 @@
 package goadapt
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -15,6 +16,7 @@ var (
 	Pl  = fmt.Println
 	Pf  = fmt.Printf
 	Spf = fmt.Sprintf
+	Fpf = fmt.Fprintf
 )
 
 // XXX deprecate adaptErr in favor of Wrap and stackTracer from https://pkg.go.dev/github.com/pkg/errors
@@ -150,13 +152,13 @@ func Raise(i int, args ...interface{}) {
 func Ck(err error, args ...interface{}) {
 	if err != nil {
 		_, file, line, _ := runtime.Caller(1)
-		msg := formatArgs(args...)
+		msg := FormatArgs(args...)
 		e := adaptErr{file, line, msg, err}
 		panic(&e)
 	}
 }
 
-func formatArgs(args ...interface{}) (msg string) {
+func FormatArgs(args ...interface{}) (msg string) {
 	if len(args) == 1 {
 		msg = fmt.Sprintf("%v", args[0])
 	}
@@ -209,7 +211,7 @@ func Assert(cond bool, args ...interface{}) {
 	if !cond {
 		_, file, line, _ := runtime.Caller(1)
 		msg := "assertion failed"
-		m := formatArgs(args...)
+		m := FormatArgs(args...)
 		if len(m) > 0 {
 			msg += ": " + m
 		}
@@ -230,7 +232,7 @@ func Assert(cond bool, args ...interface{}) {
 func ErrnoIf(cond bool, errno syscall.Errno, args ...interface{}) {
 	if cond {
 		_, file, line, _ := runtime.Caller(1)
-		msg := formatArgs(args...)
+		msg := FormatArgs(args...)
 		err := adaptErr{file, line, msg, errno}
 		panic(&err)
 	}
@@ -245,10 +247,10 @@ func Return(err *error, args ...interface{}) {
 	}
 	switch concrete := r.(type) {
 	case *adaptErr:
-		msg := formatArgs(args...)
+		msg := FormatArgs(args...)
 		*err = &adaptErr{msg: msg, err: concrete}
 	case *exitErr:
-		msg := formatArgs(args...)
+		msg := FormatArgs(args...)
 		e := &exitErr{msg: msg, err: concrete}
 		panic(e)
 	default:
@@ -265,11 +267,11 @@ func ReturnChan(errc chan error, args ...interface{}) {
 	}
 	switch concrete := r.(type) {
 	case *adaptErr:
-		msg := formatArgs(args...)
+		msg := FormatArgs(args...)
 		err := adaptErr{msg: msg, err: concrete}
 		errc <- err
 	case *exitErr:
-		msg := formatArgs(args...)
+		msg := FormatArgs(args...)
 		e := &exitErr{msg: msg, err: concrete}
 		panic(e)
 	default:
@@ -318,7 +320,7 @@ func Unpanic(errno *syscall.Errno, logfunc func(msg string)) {
 
 func ExitIf(err, target error, args ...interface{}) {
 	if errors.Is(err, target) {
-		msg := formatArgs(args...)
+		msg := FormatArgs(args...)
 		e := &exitErr{msg: msg, err: err}
 		panic(e)
 	}
@@ -386,3 +388,10 @@ func Debug(args ...interface{}) {
 	fmt.Println(msg)
 }
 */
+
+func Pprint(in interface{}) {
+	var buf []byte
+	buf, err := json.MarshalIndent(in, "", "  ")
+	Ck(err)
+	Pl(string(buf))
+}
