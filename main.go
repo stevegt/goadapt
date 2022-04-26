@@ -343,10 +343,11 @@ func Debug(msg interface{}, args ...interface{}) {
 	_log(log.Printf, msg.(string), args...)
 }
 
-func Tassert(t *testing.T, cond bool, txt string, args ...interface{}) {
+func Tassert(t *testing.T, cond bool, args ...interface{}) {
 	t.Helper() // cause file:line info to show caller
 	if !cond {
-		t.Fatalf(txt, args...)
+		txt := FormatArgs(args)
+		t.Fatal(txt)
 	}
 }
 
