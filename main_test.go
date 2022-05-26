@@ -154,8 +154,8 @@ func TestUnwrap(t *testing.T) {
 loop:
 	for i := 0; i < 10; i++ {
 		switch y := x.(type) {
-		case *adaptErr:
-			// fmt.Printf("%d adaptErr x %T y %T\n", i, x, y)
+		case *AdaptErr:
+			// fmt.Printf("%d AdaptErr x %T y %T\n", i, x, y)
 			x = y.Unwrap()
 		case *miderr:
 			// fmt.Printf("%d miderr x %T y %T\n", i, x, y)
@@ -168,8 +168,8 @@ loop:
 		}
 	}
 
-	var e *adaptErr
-	tassert(t, errors.As(err, &e), "err not unwrapping to adaptErr")
+	var e *AdaptErr
+	tassert(t, errors.As(err, &e), "err not unwrapping to AdaptErr")
 
 	var l *miderr
 	tassert(t, errors.As(err, &l), "err %T not unwrapping to miderr: %v", err, err)

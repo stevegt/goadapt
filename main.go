@@ -19,15 +19,15 @@ var (
 	Fpf = fmt.Fprintf
 )
 
-// XXX deprecate adaptErr in favor of Wrap and stackTracer from https://pkg.go.dev/github.com/pkg/errors
-type adaptErr struct {
+// XXX deprecate AdaptErr in favor of Wrap and stackTracer from https://pkg.go.dev/github.com/pkg/errors
+type AdaptErr struct {
 	file string
 	line int
 	msg  string
 	err  error
 }
 
-func (e adaptErr) Error() string {
+func (e AdaptErr) Error() string {
 	var s []string
 	if len(e.file) > 0 {
 		s = append(s, fmt.Sprintf("%s:%d", e.file, e.line))
@@ -46,7 +46,7 @@ func (e adaptErr) Error() string {
 // a string.  This function can be used instead of .Error() to get a
 // shorter, cleaner message string that doesn't include file and line
 // numbers.
-func (e adaptErr) Msg() string {
+func (e AdaptErr) Msg() string {
 	var parts []string
 	msg := e.msg
 	if len(msg) > 0 {
@@ -59,7 +59,7 @@ func (e adaptErr) Msg() string {
 	return strings.Join(parts, ": ")
 }
 
-func (e adaptErr) Unwrap() error {
+func (e AdaptErr) Unwrap() error {
 	return e.err
 }
 
@@ -127,7 +127,7 @@ func errNo(err error) (errno syscall.Errno) {
 // without filenames and line numbers if possible.
 func errMsg(err error) (msg string) {
 	switch concrete := err.(type) {
-	case *adaptErr:
+	case *AdaptErr:
 		msg = concrete.Msg()
 	default:
 		msg = concrete.Error()
@@ -143,7 +143,7 @@ func Raise(i int, args ...interface{}) {
 	if err != nil {
 		_, file, line, _ := runtime.Caller(1)
 		msg := formatArgs(args...)
-		e := adaptErr{file, line, msg, err}
+		e := AdaptErr{file, line, msg, err}
 		panic(&e)
 	}
 }
@@ -153,7 +153,7 @@ func Ck(err error, args ...interface{}) {
 	if err != nil {
 		_, file, line, _ := runtime.Caller(1)
 		msg := FormatArgs(args...)
-		e := adaptErr{file, line, msg, err}
+		e := AdaptErr{file, line, msg, err}
 		panic(&e)
 	}
 }
@@ -202,11 +202,11 @@ func errArgs(args ...interface{}) (err error) {
 
 // Assert takes a bool and zero or more arguments.  If the bool is
 // true, then Assert returns.  If the boolean is false, then Assert
-// panics.  The panic is of type adaptErr.  The adaptErr contains the
+// panics.  The panic is of type AdaptErr.  The AdaptErr contains the
 // filename and line number of the caller.  The first argument is used
 // as a Sprintf() format string.  Any remaining arguments are provided
 // to the Sprintf() as values.  The Sprintf() result is stored as
-// adaptErr.msg, to be used later in the adaptErr.Error() string.
+// AdaptErr.msg, to be used later in the AdaptErr.Error() string.
 func Assert(cond bool, args ...interface{}) {
 	if !cond {
 		_, file, line, _ := runtime.Caller(1)
@@ -215,25 +215,25 @@ func Assert(cond bool, args ...interface{}) {
 		if len(m) > 0 {
 			msg += ": " + m
 		}
-		err := adaptErr{file, line, msg, nil}
+		err := AdaptErr{file, line, msg, nil}
 		panic(&err)
 	}
 }
 
 // ErrnoIf takes a bool and zero or more arguments.  If the bool is
 // false, then ErrnoIf returns.  If the boolean is true, then ErrnoIf
-// panics.  The panic is of type adaptErr.  The adaptErr contains the
+// panics.  The panic is of type AdaptErr.  The AdaptErr contains the
 // filename and line number of the caller.  The first argument must be
-// of type syscall.Errno; the adaptErr wraps the errno.  The next
+// of type syscall.Errno; the AdaptErr wraps the errno.  The next
 // argument is used as a Sprintf() format string.  Any remaining
 // arguments are provided to the Sprintf() as values.  The Sprintf()
-// result is stored as adaptErr.msg, to be used later in the
-// adaptErr.Error() string.
+// result is stored as AdaptErr.msg, to be used later in the
+// AdaptErr.Error() string.
 func ErrnoIf(cond bool, errno syscall.Errno, args ...interface{}) {
 	if cond {
 		_, file, line, _ := runtime.Caller(1)
 		msg := FormatArgs(args...)
-		err := adaptErr{file, line, msg, errno}
+		err := AdaptErr{file, line, msg, errno}
 		panic(&err)
 	}
 }
@@ -246,9 +246,9 @@ func Return(err *error, args ...interface{}) {
 		return
 	}
 	switch concrete := r.(type) {
-	case *adaptErr:
+	case *AdaptErr:
 		msg := FormatArgs(args...)
-		*err = &adaptErr{msg: msg, err: concrete}
+		*err = &AdaptErr{msg: msg, err: concrete}
 	case *exitErr:
 		msg := FormatArgs(args...)
 		e := &exitErr{msg: msg, err: concrete}
@@ -266,9 +266,9 @@ func ReturnChan(errc chan error, args ...interface{}) {
 		return
 	}
 	switch concrete := r.(type) {
-	case *adaptErr:
+	case *AdaptErr:
 		msg := FormatArgs(args...)
-		err := adaptErr{msg: msg, err: concrete}
+		err := AdaptErr{msg: msg, err: concrete}
 		errc <- err
 	case *exitErr:
 		msg := FormatArgs(args...)
@@ -287,7 +287,7 @@ func Halt(rc *int, msg *string) {
 		return
 	}
 	switch concrete := r.(type) {
-	case *adaptErr:
+	case *AdaptErr:
 		*rc = errRc(concrete)
 		*msg = concrete.Error()
 	case *exitErr:
@@ -308,7 +308,7 @@ func Unpanic(errno *syscall.Errno, logfunc func(msg string)) {
 	switch concrete := r.(type) {
 	case *syscall.Errno:
 		*errno = *concrete
-	case *adaptErr:
+	case *AdaptErr:
 		*errno = errNo(concrete)
 		msg = concrete.Error()
 	default:
