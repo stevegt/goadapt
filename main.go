@@ -391,8 +391,12 @@ func Debug(args ...interface{}) {
 */
 
 func Pprint(in interface{}) {
+	Pl(Spprint(in))
+}
+
+func Spprint(in interface{}) string {
 	var buf []byte
 	buf, err := json.MarshalIndent(in, "", "  ")
 	Ck(err)
-	Pl(string(buf))
+	return string(buf)
 }
