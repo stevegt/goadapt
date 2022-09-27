@@ -1,7 +1,8 @@
 # goadapt
 
-Use the Ck/Return pattern from this package to replace the common `if
-err != nil {return err}` boilerplate. 
+The Ck/Return pattern from this package can be used to replace the
+common `if err != nil {return err}` boilerplate.  See
+examples/ck-return.go for usage.
 
 - Allows shorter, more readable code.
 - Provides more descriptive error messages.  
@@ -12,3 +13,14 @@ err != nil {return err}` boilerplate.
 Inspired in part by Dave Cheney's
 [https://github.com/pkg/errors](https://github.com/pkg/errors) and Harri
 Lainio's [https://github.com/lainio/err2](https://github.com/lainio/err2).
+
+This package includes several other possibly-useful functions,
+including Assert(), Debug(), and Pprint().  Docs are admittedly still
+thin -- see ./examples here and [elsewhere on
+github](https://github.com/search?q=github.com%2Fstevegt%2Fgoadapt+extension%3A.go&type=Code&ref=advsearch&l=&l=) for now.
+
+## TODO
+
+- add more doc comments
+- add more examples
+- integrate examples into test cases
