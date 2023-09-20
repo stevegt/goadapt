@@ -346,7 +346,7 @@ func Debug(msg interface{}, args ...interface{}) {
 func Tassert(t *testing.T, cond bool, args ...interface{}) {
 	t.Helper() // cause file:line info to show caller
 	if !cond {
-		txt := FormatArgs(args)
+		txt := FormatArgs(args...)
 		t.Fatal(txt)
 	}
 }
