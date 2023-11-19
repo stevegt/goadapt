@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"runtime"
@@ -12,12 +13,45 @@ import (
 	"testing"
 )
 
+// Make shortcuts for common functions
 var (
-	Pl  = fmt.Println
-	Pf  = fmt.Printf
 	Spf = fmt.Sprintf
 	Fpf = fmt.Fprintf
 )
+
+// Allow redirecting stdio
+var (
+	Stdin  io.Reader
+	Stdout io.Writer
+	Stderr io.Writer
+)
+
+// SetStdio allows a caller to redirect stdin, stdout, and stderr.
+func SetStdio(stdin io.Reader, stdout, stderr io.Writer) {
+	Stdin = stdin
+	Stdout = stdout
+	Stderr = stderr
+}
+
+// Pl is a shortcut for fmt.Println(), but it also allows a caller to redirect stdout
+// by first setting goadapt.Stdout to the desired io.Writer.
+func Pl(args ...interface{}) (n int, err error) {
+	if Stdout == nil {
+		return fmt.Println(args...)
+	} else {
+		return fmt.Fprintln(Stdout, args...)
+	}
+}
+
+// Pf is a shortcut for fmt.Printf(), but it also allows a caller to redirect stdout
+// by first setting goadapt.Stdout to the desired io.Writer.
+func Pf(format string, args ...interface{}) (n int, err error) {
+	if Stdout == nil {
+		return fmt.Printf(format, args...)
+	} else {
+		return fmt.Fprintf(Stdout, format, args...)
+	}
+}
 
 // XXX deprecate AdaptErr in favor of Wrap and stackTracer from https://pkg.go.dev/github.com/pkg/errors
 type AdaptErr struct {
